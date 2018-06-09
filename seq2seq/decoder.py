@@ -27,7 +27,7 @@ def decode_training_set(encoder_state, decoder_cell, decoder_embedded_input,
 
 
 def decode_test_set(encoder_state, decoder_cell, decoder_embeddings_matrix, sos_id,
-                    eos_id, maximum_length, num_words, sequence_length, decoding_scope,
+                    eos_id, maximum_length, num_words, decoding_scope,
                     output_function, keep_prob, batch_size):
     attention_states = tf.zeros([batch_size, 1, decoder_cell.output_size])
     attention_keys, attention_values, attention_score_fn, \
@@ -42,11 +42,12 @@ def decode_test_set(encoder_state, decoder_cell, decoder_embeddings_matrix, sos_
                                                           attention_values,
                                                           attention_score_fn,
                                                           attention_construct_fn,
+                                                          decoder_embeddings_matrix,
                                                           sos_id,
                                                           eos_id,
                                                           maximum_length,
                                                           num_words,
-                                                          name='attn_dec_inf')
+                                                          name='attn_dec_inf')                                                      
     test_predictions, _, _ = tf.contrib.seq2seq.dynamic_rnn_decoder(decoder_cell,
                                                                     test_decoder_function,
                                                                     scope=decoding_scope)
@@ -80,8 +81,8 @@ def decoder_rnn(decoder_embedded_input, decoder_embeddings_matrix, encoder_state
         test_predictions = decode_test_set(encoder_state,
                                            decoder_cell,
                                            decoder_embeddings_matrix,
-                                           word2int[' <SOS> '],
-                                           word2int[' <EOS> '],
+                                           word2int['<SOS>'],
+                                           word2int['<EOS>'],
                                            sequence_length - 1,
                                            num_words,
                                            decoding_scope,
