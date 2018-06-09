@@ -1,2 +1,2 @@
 # seq2seq
-Seq2seq implementation.  
+Sequence to Sequence implementation using TensorFlow.
