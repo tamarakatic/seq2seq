@@ -1,4 +1,4 @@
-from preprocess import clean_text
+from preprocess_data import clean_text
 
 
 def form_questions_and_answers(lines, conversations):
