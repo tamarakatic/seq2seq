@@ -1,21 +1,23 @@
-import numpy as np
 import time
 
-from preprocess_data import clean_text, read_txt, model_inputs, convert_string_to_int
+from data_utils import read_txt, model_inputs, convert_string_to_int
 from seq2seq import seq2seq_model, split_into_batches
-from form_questions_and_answers import form_questions_and_answers
+from preprocess_data import preprocess_cornell_data, preprocess_twitter_data
 
 import tensorflow as tf
 
+# Cornell movie dataset
 lines = read_txt('../data/movie_lines.txt')
 conversations = read_txt('../data/movie_conversations.txt')
+
+twitter = read_txt('../data/twitter.txt')
 
 epochs = 100
 batch_size = 32
 rnn_size = 1024
 num_layers = 3
 encoding_embedding_size = 1024
-decoding_embedding_size = 1024
+decoding_embedding_size = encoding_embedding_size
 learning_rate = 0.001
 learning_rate_decay = 0.9
 min_learning_rate = 0.0001
@@ -25,8 +27,15 @@ keep_probability = 0.5
 tf.reset_default_graph()
 session = tf.InteractiveSession()       # Defining a session
 
+# Load Cornell data
+# ans_words_to_int, ans_ints_to_word, ques_words_to_int, sort_clean_ques, sort_clean_ans \
+#  = preprocess_cornell_data(lines, conversations)
+
+
+# Load Twitter data
 ans_words_to_int, ans_ints_to_word, ques_words_to_int, sort_clean_ques, sort_clean_ans \
- = form_questions_and_answers(lines, conversations)
+ = preprocess_twitter_data(twitter)
+
 inputs, targets, lr, keep_prob = model_inputs()
 sequence_length = tf.placeholder_with_default(25, None, name='sequence_length')
 input_shape = tf.shape(inputs)
@@ -76,6 +85,12 @@ for epoch in range(1, epochs + 1):
      in enumerate(split_into_batches(training_questions, training_answers,
                                      batch_size, ques_words_to_int, ans_words_to_int)):
         starting_time = time.time()
+        check_answers = []
+        for i in padded_answers_in_batch[0, :]:
+            check_answers.append(ans_ints_to_word[i])
+
+        print(check_answers)
+
         _, batch_training_loss_error = session.run([optimizer_gradient_clipping,
                                                     loss_error],
                                                    {inputs: padded_questions_in_batch,
@@ -104,10 +119,10 @@ for epoch in range(1, epochs + 1):
                     in enumerate(split_into_batches(validation_questions, validation_answers, batch_size)):
                 _, batch_validation_loss_error = session.run(loss_error,
                                                              {inputs: padded_questions_in_batch,
-                                                             targets: padded_answers_in_batch,
-                                                             lr: learning_rate,
-                                                             sequence_length: padded_answers_in_batch.shape[1],
-                                                             keep_prob: 1})
+                                                              targets: padded_answers_in_batch,
+                                                              lr: learning_rate,
+                                                              sequence_length: padded_answers_in_batch.shape[1],
+                                                              keep_prob: 1})
                 total_validation_loss_error += batch_validation_loss_error
             ending_time = time.time()
             batch_time = ending_time - starting_time
