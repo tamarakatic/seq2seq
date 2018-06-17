@@ -1,48 +1,42 @@
-import re
-import codecs
-
-import tensorflow as tf
+from data_utils import form_ques_answ, clean_text
 
 
-def read_txt(path):
-    return codecs.open(path, 'r', encoding='utf-8', errors='ignore').read().split('\n')
+def preprocess_cornell_data(lines, conversations):
+    id2line = {}
+    for line in lines:
+        _line = line.split(' +++$+++ ')
+        if len(_line) == 5:
+            id2line[_line[0]] = _line[4]
+
+    conversations_ids = []
+    for conversation in conversations[:-1]:
+        _conversation = conversation.split(' +++$+++ ')[-1][1:-1].replace("'", "").replace(" ", "")
+        conversations_ids.append(_conversation.split(','))
+
+    questions = []
+    answers = []
+    for conversation in conversations_ids:
+        for i in range(0, len(conversation), 2):
+            questions.append(id2line[conversation[i]])
+            answers.append(id2line[conversation[i + 1]])
+
+    clean_questions = []
+    for question in questions:
+        clean_questions.append(clean_text(question))
+
+    clean_answers = []
+    for answer in answers:
+        clean_answers.append(clean_text(answer))
+
+    return form_ques_answ(clean_questions, clean_answers)
 
 
-def clean_text(text):
-    text = text.lower()
-    text = re.sub(r"i'm", "i am", text)
-    text = re.sub(r"he's", "he is", text)
-    text = re.sub(r"she's", "she is", text)
-    text = re.sub(r"that's", "that is", text)
-    text = re.sub(r"what's", "what is", text)
-    text = re.sub(r"where's", "where is", text)
-    text = re.sub(r"how's", "how is", text)
-    text = re.sub(r"\'ll", " will", text)
-    text = re.sub(r"\'ve", " have", text)
-    text = re.sub(r"\'re", " are", text)
-    text = re.sub(r"\'d", " would", text)
-    text = re.sub(r"n't", " not", text)
-    text = re.sub(r"won't", "will not", text)
-    text = re.sub(r"can't", "cannot", text)
-    text = re.sub(r"[-()\"#/@;:<>{}`+=~|.!?,]", "", text)
-    return text
+def preprocess_twitter_data(lines):
+    filter_data = clean_text(lines)
+    filter_question, filter_answer = [], []
 
+    for i in range(0, len(filter_data), 2):
+        filter_question.append(filter_data[i])
+        filter_answer.append(filter_data[i+1])
 
-def model_inputs():
-    inputs = tf.placeholder(tf.int32, [None, None], name='input')
-    targets = tf.placeholder(tf.int32, [None, None], name='target')
-    learning_rate = tf.placeholder(tf.float32, name='learning_rate')
-    keep_prob = tf.placeholder(tf.float32, name='keep_prob')
-    return inputs, targets, learning_rate, keep_prob
-
-
-def preprocess_targets(targets, word2int, batch_size):
-    left_side = tf.fill([batch_size, 1], word2int['<SOS>'])
-    right_side = tf.strided_slice(targets, [0, 0], [batch_size, -1], [1, 1])
-    preprocessed_targets = tf.concat([left_side, right_side], axis=1)
-    return preprocessed_targets
-
-
-def convert_string_to_int(question, word2int):
-    question = clean_text(question)
-    return [word2int.get(word, word2int['<OUT>']) for word in question.split()]
+    return form_ques_answ(filter_question, filter_answer)
