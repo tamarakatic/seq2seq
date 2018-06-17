@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from preprocess_data import preprocess_targets
+from data_utils import preprocess_targets
 from encoder import encoder_rnn
 from decoder import decoder_rnn
 
