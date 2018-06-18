@@ -7,8 +7,8 @@ from preprocess_data import preprocess_cornell_data, preprocess_twitter_data
 import tensorflow as tf
 
 # Cornell movie dataset
-lines = read_txt('../data/movie_lines.txt')
-conversations = read_txt('../data/movie_conversations.txt')
+# lines = read_txt('../data/movie_lines.txt')
+# conversations = read_txt('../data/movie_conversations.txt')
 
 twitter = read_txt('../data/twitter.txt')
 
@@ -25,7 +25,7 @@ keep_probability = 0.5
 
 
 tf.reset_default_graph()
-session = tf.InteractiveSession()       # Defining a session
+session = tf.Session()       # Defining a session
 
 # Load Cornell data
 # ans_words_to_int, ans_ints_to_word, ques_words_to_int, sort_clean_ques, sort_clean_ans \
@@ -57,6 +57,7 @@ with tf.name_scope('optimization'):
     loss_error = tf.contrib.seq2seq.sequence_loss(training_predictions,
                                                   targets,
                                                   tf.ones([input_shape[0], sequence_length]))
+    loss_sumary = tf.summary.scalar('loss_error', loss_error)
     optimizer = tf.train.AdamOptimizer(learning_rate)
     gradients = optimizer.compute_gradients(loss_error)
     clipped_gradients = [(tf.clip_by_value(grad_tensor, -5., 5.), grad_variable)
@@ -80,25 +81,36 @@ early_stopping_stop = 100
 checkpoint = '../models/chatbot_weights.ckpt'
 session.run(tf.global_variables_initializer())
 
+# merged = tf.summary.merge_all()
+train_writer = tf.summary.FileWriter('../logs/1/train', session.graph)
+test_writer = tf.summary.FileWriter('../logs/1/test')
+
 for epoch in range(1, epochs + 1):
     for batch_index, (padded_questions_in_batch, padded_answers_in_batch) \
      in enumerate(split_into_batches(training_questions, training_answers,
                                      batch_size, ques_words_to_int, ans_words_to_int)):
         starting_time = time.time()
-        check_answers = []
-        for i in padded_answers_in_batch[0, :]:
-            check_answers.append(ans_ints_to_word[i])
+        # check_answers = []
+        # for i in padded_answers_in_batch[0, :]:
+        #     check_answers.append(ans_ints_to_word[i])
+        #
+        # print(check_answers)
 
-        print(check_answers)
+        _, batch_training_loss_error, summary = session.run(
+            [optimizer_gradient_clipping, loss_error, loss_sumary],
+            {inputs: padded_questions_in_batch,
+             targets: padded_answers_in_batch,
+             lr: learning_rate,
+             sequence_length: padded_answers_in_batch.shape[1],
+             keep_prob: keep_probability}
+        )
 
-        _, batch_training_loss_error = session.run([optimizer_gradient_clipping,
-                                                    loss_error],
-                                                   {inputs: padded_questions_in_batch,
-                                                    targets: padded_answers_in_batch,
-                                                    lr: learning_rate,
-                                                    sequence_length: padded_answers_in_batch.shape[1],
-                                                    keep_prob: keep_probability})
+        # import pdb; pdb.set_trace()
+        # summary, _ = session.run([merged, loss_error])
         total_training_loss_error += batch_training_loss_error
+        total_batch = len(training_questions) // batch_size + 1
+        train_writer.add_summary(summary,
+                                 (epoch-1) * total_batch + batch_index)
         ending_time = time.time()
         batch_time = ending_time - starting_time
         if batch_index % batch_index_check_training_loss == 0:
@@ -108,7 +120,7 @@ for epoch in range(1, epochs + 1):
              Training Time on 100 Batches: {:d} seconds'.format(epoch,
                                                                 epochs,
                                                                 batch_index,
-                                                                len(training_questions),
+                                                                len(training_questions) // batch_size + 1,
                                                                 tr_loss_er,
                                                                 int(time_100_batches)))
             total_training_loss_error = 0
