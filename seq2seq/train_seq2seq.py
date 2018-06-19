@@ -105,8 +105,6 @@ for epoch in range(1, epochs + 1):
              keep_prob: keep_probability}
         )
 
-        # import pdb; pdb.set_trace()
-        # summary, _ = session.run([merged, loss_error])
         total_training_loss_error += batch_training_loss_error
         total_batch = len(training_questions) // batch_size + 1
         train_writer.add_summary(summary,
@@ -114,7 +112,7 @@ for epoch in range(1, epochs + 1):
         ending_time = time.time()
         batch_time = ending_time - starting_time
         if batch_index % batch_index_check_training_loss == 0:
-            tr_loss_er = total_training_loss_error / batch_index_check_training_loss
+            tr_loss_er = total_training_loss_error // batch_index_check_training_loss
             time_100_batches = batch_time * batch_index_check_training_loss
             print('Epoch: {:>3}/{}, Batch: {:>4}/{}, Training Loss Error: {:>6.3f}, \
              Training Time on 100 Batches: {:d} seconds'.format(epoch,
@@ -139,7 +137,7 @@ for epoch in range(1, epochs + 1):
                 total_validation_loss_error += batch_validation_loss_error
             ending_time = time.time()
             batch_time = ending_time - starting_time
-            average_validation_loss_error = total_validation_loss_error / (len(validation_questions) / batch_size)
+            average_validation_loss_error = total_validation_loss_error // (len(validation_questions) // batch_size) + 1
             print("Validation Loss Error: {:>6.3f}, Batch Validation Time: {:d} seconds"
                   .format(average_validation_loss_error, int(batch_time)))
             learning_rate *= learning_rate_decay
