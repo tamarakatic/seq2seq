@@ -14,7 +14,9 @@ def seq2seq_model(inputs, targets, keep_prob, batch_size, sequence_length,
                                                                encoder_embedding_size,
                                                                initializer=tf.random_uniform_initializer(0, 1))
     encoder_state = encoder_rnn(encoder_embedding_input, rnn_size, num_layers, keep_prob, sequence_length)
+
     preprocessed_targets = preprocess_targets(targets, questions_words_to_int, batch_size)
+    
     decoder_embeddings_matrix = tf.Variable(tf.random_uniform([questions_num_words + 1,
                                                                decoder_embedding_size],
                                                               0, 1))
