@@ -73,7 +73,7 @@ validation_answers = sort_clean_ans[:training_validation_split]
 
 
 batch_index_check_training_loss = 100
-batch_index_check_validation_loss = (len(training_questions))
+batch_index_check_validation_loss = (len(training_questions)) // batch_size + 1
 total_training_loss_error = 0
 list_validation_loss_error = []
 early_stopping_check = 0
@@ -128,7 +128,8 @@ for epoch in range(1, epochs + 1):
             total_validation_loss_error = 0
             starting_time = time.time()
             for batch_index_validation, (padded_questions_in_batch, padded_answers_in_batch) \
-                    in enumerate(split_into_batches(validation_questions, validation_answers, batch_size)):
+                    in enumerate(split_into_batches(validation_questions, validation_answers,
+                                                    batch_size, ques_words_to_int, ans_words_to_int)):
                 _, batch_validation_loss_error = session.run(loss_error,
                                                              {inputs: padded_questions_in_batch,
                                                               targets: padded_answers_in_batch,
