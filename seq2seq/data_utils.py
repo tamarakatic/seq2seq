@@ -50,8 +50,8 @@ def preprocess_targets(targets, word2int, batch_size):
 
 
 def convert_string_to_int(question, word2int):
-    question = clean_text(question)
-    return [word2int.get(word, word2int['<OUT>']) for word in question.split()]
+    new_question = ''.join(clean_text(question))
+    return [word2int.get(word, word2int['<OUT>']) for word in new_question.split()]
 
 
 def form_ques_answ(clean_questions, clean_answers):
