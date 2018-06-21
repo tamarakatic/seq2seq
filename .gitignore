@@ -107,3 +107,4 @@ venv.bak/
 data/__pycache__/
 
 data/
+models/
