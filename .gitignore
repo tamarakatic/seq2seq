@@ -108,3 +108,5 @@ data/__pycache__/
 
 data/
 models/
+notes.txt
+logs/
