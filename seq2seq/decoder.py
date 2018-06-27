@@ -47,7 +47,7 @@ def decode_test_set(encoder_state, decoder_cell, decoder_embeddings_matrix, sos_
                                                           eos_id,
                                                           maximum_length,
                                                           num_words,
-                                                          name='attn_dec_inf')                                                      
+                                                          name='attn_dec_inf')
     test_predictions, _, _ = tf.contrib.seq2seq.dynamic_rnn_decoder(decoder_cell,
                                                                     test_decoder_function,
                                                                     scope=decoding_scope)

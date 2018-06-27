@@ -1,4 +1,5 @@
 import time
+import numpy as np
 
 from data_utils import read_txt, model_inputs, convert_string_to_int
 from seq2seq import seq2seq_model, split_into_batches
@@ -73,17 +74,16 @@ validation_answers = sort_clean_ans[:training_validation_split]
 
 
 batch_index_check_training_loss = 100
-batch_index_check_validation_loss = (len(training_questions)) // batch_size - 1
+batch_index_check_validation_loss = len(training_questions) // batch_size - 1
 total_training_loss_error = 0
 list_validation_loss_error = []
 early_stopping_check = 0
 early_stopping_stop = 10
 checkpoint = '../models/chatbot_weights.ckpt'
-session.run(tf.global_variables_initializer())
-
 train_writer = tf.summary.FileWriter('../logs/1/train', session.graph)
 test_writer = tf.summary.FileWriter('../logs/1/test')
 
+session.run(tf.global_variables_initializer())
 for epoch in range(1, epochs + 1):
     for batch_index, (padded_questions_in_batch, padded_answers_in_batch) \
      in enumerate(split_into_batches(training_questions, training_answers,
@@ -154,9 +154,8 @@ for epoch in range(1, epochs + 1):
 
 print("Game Over")
 
-
-# checkpoint = "chatbot_weights.ckpt"
-# session = tf.InteractiveSession()
+#
+# session = tf.Session()
 # session.run(tf.global_variables_initializer())
 # saver = tf.train.Saver()
 # saver.restore(session, checkpoint)
