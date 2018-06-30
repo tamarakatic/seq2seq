@@ -8,6 +8,8 @@ import tensorflow as tf
 from preprocess_data import clean_text
 
 VOCAB_SIZE = 6000
+MAX_LEN = 25
+MIN_LEN = 2
 
 
 def model_inputs():
@@ -48,8 +50,8 @@ def prepare_data(lines):
     for i in range(0, len(filter_data), 2):
         question_len = len(filter_data[i].split(' '))
         answer_len = len(filter_data[i+1].split(' '))
-        if question_len >= 2 and question_len <= 25:
-            if answer_len >= 2 and answer_len <= 25:
+        if question_len >= MIN_LEN and question_len <= MAX_LEN:
+            if answer_len >= MIN_LEN and answer_len <= MAX_LEN:
                 filter_questions.append(filter_data[i])
                 filter_answers.append(filter_data[i+1])
 
@@ -64,18 +66,18 @@ def prepare_data(lines):
     word2idx = dict([(w, i) for i, w in enumerate(ind2word)])
 
     data_len = len(question_tokenized)
-    question_idx = np.zeros([data_len, 25], dtype=np.int32)
-    answer_idx = np.zeros([data_len, 25], dtype=np.int32)
+    question_idx = np.zeros([data_len, MAX_LEN], dtype=np.int32)
+    answer_idx = np.zeros([data_len, MAX_LEN], dtype=np.int32)
 
     for i in range(data_len):
-        question_indexes = apply_padding(question_tokenized[i], word2idx, 25)
-        answer_indexes = apply_padding(answer_tokenized[i], word2idx, 25)
+        question_indexes = apply_padding(question_tokenized[i], word2idx, MAX_LEN)
+        answer_indexes = apply_padding(answer_tokenized[i], word2idx, MAX_LEN)
 
         question_idx[i] = np.array(question_indexes)
         answer_idx[i] = np.array(answer_indexes)
 
-    np.save('question_idx.npy', question_idx)
-    np.save('answer_idx.npy', answer_idx)
+    np.save('../data/question_idx.npy', question_idx)
+    np.save('../data/answer_idx.npy', answer_idx)
 
     metadata = {
             'word2idx': word2idx,
