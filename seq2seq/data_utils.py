@@ -5,7 +5,7 @@ import pickle
 
 from preprocess_data import clean_text
 
-MOST_FREQ_WORDS = 6000
+MOST_FREQ_WORDS = 10000
 MAX_LEN = 25
 MIN_LEN = 2
 
