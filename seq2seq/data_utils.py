@@ -5,7 +5,7 @@ import pickle
 
 from preprocess_data import clean_text
 
-VOCAB_SIZE = 6000
+MOST_FREQ_WORDS = 6000
 MAX_LEN = 25
 MIN_LEN = 2
 
@@ -38,7 +38,7 @@ def prepare_data(lines):
     tokenized = question_tokenized + answer_tokenized
 
     frequent_dictionary = nltk.FreqDist(itertools.chain(*tokenized))
-    vocabulary = frequent_dictionary.most_common(VOCAB_SIZE)
+    vocabulary = frequent_dictionary.most_common(MOST_FREQ_WORDS)
 
     ind2word = ['_'] + ['pad'] + [x[0] for x in vocabulary]
     word2idx = dict([(w, i) for i, w in enumerate(ind2word)])
