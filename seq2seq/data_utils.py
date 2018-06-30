@@ -3,33 +3,11 @@ import itertools
 import numpy as np
 import pickle
 
-import tensorflow as tf
-
 from preprocess_data import clean_text
 
 VOCAB_SIZE = 6000
 MAX_LEN = 25
 MIN_LEN = 2
-
-
-def model_inputs():
-    inputs = tf.placeholder(tf.int32, [None, None], name='input')
-    targets = tf.placeholder(tf.int32, [None, None], name='target')
-    learning_rate = tf.placeholder(tf.float32, name='learning_rate')
-    keep_prob = tf.placeholder(tf.float32, name='keep_prob')
-    return inputs, targets, learning_rate, keep_prob
-
-
-def preprocess_targets(targets, word2int, batch_size):
-    left_side = tf.fill([batch_size, 1], word2int['<SOS>'])
-    right_side = tf.strided_slice(targets, [0, 0], [batch_size, -1], [1, 1])
-    preprocessed_targets = tf.concat([left_side, right_side], axis=1)
-    return preprocessed_targets
-
-
-def convert_string_to_int(question, word2int):
-    new_question = ''.join(clean_text(question))
-    return [word2int.get(word, word2int['<OUT>']) for word in new_question.split()]
 
 
 def apply_padding(batch_of_sequences, word_to_int, maxlen):
