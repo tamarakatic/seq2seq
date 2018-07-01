@@ -1,186 +1,183 @@
 import time
-import numpy as np
+from sklearn.utils import shuffle
+import matplotlib as mpl
+mpl.use('TkAgg')
 
-from data_utils import read_txt, model_inputs, convert_string_to_int
-from seq2seq import seq2seq_model, split_into_batches
-from preprocess_data import preprocess_cornell_data, preprocess_twitter_data
+from data_utils import split_dataset, load_data
+from seq2seq import seq2seq_model, training_model, inferencing_model
 
 import tensorflow as tf
+import tensorlayer as tl
 
-# Cornell movie dataset
-# lines = read_txt('../data/movie_lines.txt')
-# conversations = read_txt('../data/movie_conversations.txt')
 
-twitter = read_txt('../data/twitter.txt')
-
-epochs = 100
+metadata, question_idx, answer_idx = load_data(PATH='../data/')
+epochs = 50
 batch_size = 32
-rnn_size = 1024
-num_layers = 3
-encoding_embedding_size = 1024
-decoding_embedding_size = encoding_embedding_size
-learning_rate = 0.001
-learning_rate_decay = 0.9
-min_learning_rate = 0.0001
-keep_probability = 0.5
-
-
-tf.reset_default_graph()
-session = tf.Session()       # Defining a session
-
-# Load Cornell data
-# ans_words_to_int, ans_ints_to_word, ques_words_to_int, sort_clean_ques, sort_clean_ans \
-#  = preprocess_cornell_data(lines, conversations)
-
-
-# Load Twitter data
-ans_words_to_int, ans_ints_to_word, ques_words_to_int, sort_clean_ques, sort_clean_ans \
- = preprocess_twitter_data(twitter)
-
-inputs, targets, lr, keep_prob = model_inputs()
-sequence_length = tf.placeholder_with_default(25, None, name='sequence_length')
-input_shape = tf.shape(inputs)
-
-training_predictions, test_predictions = seq2seq_model(tf.reverse(inputs, [-1]),
-                                                       targets,
-                                                       keep_prob,
-                                                       batch_size,
-                                                       sequence_length,
-                                                       len(ans_words_to_int),
-                                                       len(ques_words_to_int),
-                                                       encoding_embedding_size,
-                                                       decoding_embedding_size,
-                                                       rnn_size,
-                                                       num_layers,
-                                                       ques_words_to_int)
-
-with tf.name_scope('optimization'):
-    loss_error = tf.contrib.seq2seq.sequence_loss(training_predictions,
-                                                  targets,
-                                                  tf.ones([input_shape[0], sequence_length]))
-    loss_sumary = tf.summary.scalar('loss_error', loss_error)
-    optimizer = tf.train.AdamOptimizer(learning_rate)
-    gradients = optimizer.compute_gradients(loss_error)
-    clipped_gradients = [(tf.clip_by_value(grad_tensor, -5., 5.), grad_variable)
-                         for grad_tensor, grad_variable in gradients
-                         if grad_tensor is not None]
-    optimizer_gradient_clipping = optimizer.apply_gradients(clipped_gradients)
-
-training_validation_split = int(len(sort_clean_ques) * 0.15)
-training_questions = sort_clean_ques[training_validation_split:]
-training_answers = sort_clean_ans[training_validation_split:]
-validation_questions = sort_clean_ques[:training_validation_split]
-validation_answers = sort_clean_ans[:training_validation_split]
-
-
-batch_index_check_training_loss = 100
-batch_index_check_validation_loss = len(training_questions) // batch_size - 1
-total_training_loss_error = 0
-list_validation_loss_error = []
+embedding_dim = 1024
+learning_rate = 0.0001
+checkpoint = '../models/checkpoint.npz'
+batch_index_check_training_loss = 200
+max_sentence_len = 25
+list_loss_errors = []
 early_stopping_check = 0
 early_stopping_stop = 10
-checkpoint = '../models/chatbot_weights.ckpt'
-train_writer = tf.summary.FileWriter('../logs/1/train', session.graph)
-test_writer = tf.summary.FileWriter('../logs/1/test')
 
-session.run(tf.global_variables_initializer())
-for epoch in range(1, epochs + 1):
-    for batch_index, (padded_questions_in_batch, padded_answers_in_batch) \
-     in enumerate(split_into_batches(training_questions, training_answers,
-                                     batch_size, ques_words_to_int, ans_words_to_int)):
-        starting_time = time.time()
-        _, batch_training_loss_error, summary = session.run([optimizer_gradient_clipping,
-                                                             loss_error,
-                                                             loss_sumary],
-                                                            {inputs: padded_questions_in_batch,
-                                                             targets: padded_answers_in_batch,
-                                                             lr: learning_rate,
-                                                             sequence_length: padded_answers_in_batch.shape[1],
-                                                             keep_prob: keep_probability})
 
-        total_training_loss_error += batch_training_loss_error
-        total_batch = len(training_questions) // batch_size + 1
-        train_writer.add_summary(summary,
-                                 (epoch-1) * total_batch + batch_index)
-        ending_time = time.time()
-        batch_time = ending_time - starting_time
-        if batch_index % batch_index_check_training_loss == 0:
-            tr_loss_er = total_training_loss_error / batch_index_check_training_loss
-            time_100_batches = batch_time * batch_index_check_training_loss
-            print('Epoch: {:>3}/{}, Batch: {:>4}/{}, Training Loss Error: {:>6.3f}, \
-             Training Time on 100 Batches: {:d} seconds'.format(epoch,
-                                                                epochs,
-                                                                batch_index,
-                                                                len(training_questions) // batch_size + 1,
-                                                                tr_loss_er,
-                                                                int(time_100_batches)))
-            total_training_loss_error = 0
-        if batch_index % batch_index_check_validation_loss == 0 and batch_index > 0:
-            total_validation_loss_error = 0
-            starting_time = time.time()
-            for batch_index_validation, (padded_questions_in_batch, padded_answers_in_batch) \
-                    in enumerate(split_into_batches(validation_questions, validation_answers,
-                                                    batch_size, ques_words_to_int, ans_words_to_int)):
-                batch_validation_loss_error = session.run(loss_error,
-                                                          {inputs: padded_questions_in_batch,
-                                                           targets: padded_answers_in_batch,
-                                                           lr: learning_rate,
-                                                           sequence_length: padded_answers_in_batch.shape[1],
-                                                           keep_prob: 1})
-                total_validation_loss_error += batch_validation_loss_error
-            ending_time = time.time()
-            batch_time = ending_time - starting_time
-            val_batch_size = len(validation_questions) // batch_size + 1
-            average_validation_loss_error = total_validation_loss_error / val_batch_size
-            print("Validation Loss Error: {:>6.3f}, Batch Validation Time: {:d} seconds"
-                  .format(average_validation_loss_error, int(batch_time)))
-            learning_rate *= learning_rate_decay
-            if learning_rate < min_learning_rate:
-                learning_rate = min_learning_rate
-            list_validation_loss_error.append(average_validation_loss_error)
-            if average_validation_loss_error <= min(list_validation_loss_error):
-                print("I speak better now!!!")
-                early_stopping_check = 0
-                saver = tf.train.Saver()
-                saver.save(session, checkpoint)
-            else:
-                print("Sorry I don't speak better. I need to practice more!!!")
-                early_stopping_check += 1
-                if early_stopping_check == early_stopping_stop:
-                    break
-    if early_stopping_check == early_stopping_stop:
-        print("Unfortunatelly, I cannot speak better anymore. This is the best I can do!")
-        break
+def remove_pad_sequences(ques_idx, ans_idx):
+    train_X, train_y, test_X, test_y, valid_X, valid_y = split_dataset(ques_idx, ans_idx)
+    train_X = tl.prepro.remove_pad_sequences(train_X)
+    train_y = tl.prepro.remove_pad_sequences(train_y)
+    test_X = tl.prepro.remove_pad_sequences(test_X)
+    test_y = tl.prepro.remove_pad_sequences(test_y)
+    valid_X = tl.prepro.remove_pad_sequences(valid_X)
+    valid_y = tl.prepro.remove_pad_sequences(valid_y)
+    return train_X, train_y, test_X, test_y, valid_X, valid_y
 
-print("Game Over")
 
-#
-# session = tf.Session()
-# session.run(tf.global_variables_initializer())
-# saver = tf.train.Saver()
-# saver.restore(session, checkpoint)
-#
-# while(True):
-#     question = input("You: ")
-#     if question == 'Goodbye':
-#         break
-#     question = convert_string_to_int(question, ques_words_to_int)
-#     question = question + [ques_words_to_int['<PAD>']] * (25 - len(question))
-#     fake_batch = np.zeros((batch_size, 25))
-#     fake_batch[0] = question
-#     predicted_answer = session.run(test_predictions, {inputs: fake_batch,
-#                                                       keep_prob: 0.5})[0]
-#     answer = ''
-#     for i in np.argmax(predicted_answer, 1):
-#         if ans_ints_to_word[i] == 'i':
-#             token = ' I'
-#         elif ans_ints_to_word[i] == '<EOS>':
-#             token = '.'
-#         elif ans_ints_to_word[i] == '<OUT>':
-#             token = 'out'
-#         else:
-#             token = ' ' + ans_ints_to_word[i]
-#         answer += token
-#         if token == '.':
-#             break
-#     print('ChatBot: ' + answer)
+def seq2seq_example(idx_to_word_list, train_X, train_y, start_id, end_id):
+    print("encode_sequences: ", [idx_to_word_list[id] for id in train_X[10]])
+    target_sequences = tl.prepro.sequences_add_end_id([train_y[10]], end_id=end_id)[0]
+    print("target_sequences: ", [idx_to_word_list[id] for id in target_sequences])
+    decode_sequences = tl.prepro.sequences_add_start_id([train_y[10]], start_id=start_id, remove_last=False)[0]
+    print("decode_sequences: ", [idx_to_word_list[id] for id in decode_sequences])
+    target_mask = tl.prepro.sequences_get_mask([target_sequences])[0]
+    print("target_mask: ", target_mask)
+    print(len(target_sequences), len(decode_sequences), len(target_mask))
+
+
+def prepare_parameters():
+    X_vocab_size = len(metadata['idx2word'])        # 10002
+
+    word_to_idx_dict = metadata['word2idx']
+    idx_to_word_list = metadata['idx2word']
+
+    start_id, end_id = X_vocab_size, X_vocab_size + 1       # 10002, 10003
+
+    word_to_idx_dict.update({'start_id': start_id})
+    word_to_idx_dict.update({'end_id': end_id})
+    idx_to_word_list = idx_to_word_list + ['start_id', 'end_id']
+    X_vocab_size = y_vocab_size = X_vocab_size + 2
+
+    seq2seq_example(idx_to_word_list, train_X, train_y, start_id, end_id)
+
+    return (start_id, end_id,
+            X_vocab_size, y_vocab_size,
+            word_to_idx_dict, idx_to_word_list)
+
+
+def train_model(train_X, train_y, n_step):
+    start_id, end_id, X_vocab_size, y_vocab_size, word_to_idx_dict, idx_to_word_list = prepare_parameters()
+
+    encode_seqs_tr, decode_seqs_tr, target_seqs, target_mask, net_out = training_model(
+                                                                        batch_size,
+                                                                        X_vocab_size,
+                                                                        embedding_dim)
+
+    encode_seqs_inf, decode_seqs_inf, net, net_rnn, output = inferencing_model(
+                                                             X_vocab_size,
+                                                             embedding_dim)
+
+    loss = tl.cost.cross_entropy_seq_with_mask(logits=net_out.outputs,
+                                               target_seqs=target_seqs,
+                                               input_mask=target_mask,
+                                               return_details=False,
+                                               name='cost')
+
+    net_out.print_params(False)
+
+    train_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss)
+
+    sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=False))
+    tl.layers.initialize_global_variables(sess)
+    tl.files.load_and_assign_npz(sess=sess, name=checkpoint, network=net)
+
+    for epoch in range(epochs):
+        epoch_time = time.time()
+
+        train_X, train_y = shuffle(train_X, train_y, random_state=0)
+        total_err, batch_idx = 0, 0
+
+        for X, y in tl.iterate.minibatches(inputs=train_X,
+                                           targets=train_y,
+                                           batch_size=batch_size,
+                                           shuffle=False):
+            step_time = time.time()
+
+            X = tl.prepro.pad_sequences(X)
+            _target_seqs = tl.prepro.sequences_add_end_id(y, end_id=end_id)
+            _target_seqs = tl.prepro.pad_sequences(_target_seqs)
+            _decode_seqs = tl.prepro.sequences_add_start_id(y, start_id=start_id, remove_last=False)
+            _decode_seqs = tl.prepro.pad_sequences(_decode_seqs)
+            _target_mask = tl.prepro.sequences_get_mask(_target_seqs)
+
+            _, error = sess.run([train_optimizer, loss],
+                                {encode_seqs_tr: X,
+                                 decode_seqs_tr: _decode_seqs,
+                                 target_seqs: _target_seqs,
+                                 target_mask: _target_mask})
+
+            if batch_idx % batch_index_check_training_loss == 0:
+                print('Epoch: {}/{}, Batch: {}/{}, Loss: {:.4f}, Time: {:.2f}s'.format(
+                      epoch, epochs,
+                      batch_idx, n_step,
+                      error,
+                      time.time()-step_time))
+
+            total_err += error
+            batch_idx += 1
+
+            # inference
+            if batch_idx % 1000 == 0:
+                ex_queries = ["happy birthday have a nice day",
+                              "donald trump won last nights presidential debate according to snap online polls"]
+
+                for query in ex_queries:
+                    print("Lucy > ", query)
+                    query_id = [word_to_idx_dict[w] for w in query.split(" ")]
+                    for _ in range(5):      # 5 answers for 1 query
+                        # encode => get state
+                        state = sess.run(net_rnn.final_state_encode,
+                                         {encode_seqs_inf: [query_id]})
+                        # decode => feed start_id, get top word
+                        out, state = sess.run([output, net_rnn.final_state_decode],
+                                              {net_rnn.initial_state_decode: state,
+                                               decode_seqs_inf: [[start_id]]})
+                        word_id = tl.nlp.sample_top(out[0], top_k=3)
+                        word = idx_to_word_list[word_id]
+                        # decode => feed state iteratively
+                        sentence = [word]
+                        for _ in range(max_sentence_len):
+                            out, state = sess.run([output, net_rnn.final_state_decode],
+                                                  {net_rnn.initial_state_decode: state,
+                                                   decode_seqs_inf: [[word_id]]})
+                            word_id = tl.nlp.sample_top(out[0], top_k=2)
+                            word = idx_to_word_list[word_id]
+                            if word_id == end_id:
+                                break
+                            sentence = sentence + [word]
+                        print(" >", ' '.join(sentence))
+        average_loss_error = total_err/batch_idx
+        print('Epoch: {}/{}, Averaged Loss: {:.4f}, Time: {:.2f}s'.format(
+              epoch, epochs,
+              average_loss_error,
+              time.time() - epoch_time))
+
+        list_loss_errors.append(average_loss_error)
+        if average_loss_error <= min(list_loss_errors):
+            print("I speak better now!!!")
+            early_stopping_check = 0
+            tl.files.save_npz(net.all_params, name=checkpoint, sess=sess)
+        else:
+            print("Sorry I don't speak better. I need to practice more!!!")
+            early_stopping_check += 1
+            if early_stopping_check == early_stopping_stop:
+                break
+
+    
+if __name__ == '__main__':
+    train_X, train_y, test_X, test_y, valid_X, valid_y = remove_pad_sequences(question_idx, answer_idx)
+    X_seq_len, y_seq_len = len(train_X), len(train_y)
+    assert X_seq_len == y_seq_len
+
+    n_step = int(X_seq_len/batch_size)      # 7708
+    train_model(train_X, train_y, n_step)
