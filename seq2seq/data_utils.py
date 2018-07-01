@@ -3,20 +3,32 @@ import itertools
 import numpy as np
 import pickle
 
-from preprocess_data import clean_text
+from preprocess_data import clean_text, read_txt, preprocess_cornell_data
 
+OUT = 'out'     # unknown
+PAD = 'pad'
 MOST_FREQ_WORDS = 10000
 MAX_LEN = 25
 MIN_LEN = 2
 
 
-def apply_padding(batch_of_sequences, word_to_int, maxlen):
+def type_of_data(Twitter=True):
+    if Twitter:
+        twitter_lines = read_txt('../data/twitter.txt')
+        prepare_data(twitter_lines)
+    else:
+        lines = read_txt('../data/movie_lines.txt')
+        conversations = read_txt('../data/movie_conversations.txt')
+        preprocess_cornell_data(lines, conversations)
+
+
+def sequence_list(batch_of_sequences, word_to_int, maxlen):
     pading_idx = []
     for word in batch_of_sequences:
         if word in word_to_int:
             pading_idx.append(word_to_int[word])
         else:
-            pading_idx.append(word_to_int['pad'])
+            pading_idx.append(word_to_int[OUT])
 
     return pading_idx + [0]*(maxlen - len(batch_of_sequences))
 
@@ -40,7 +52,7 @@ def prepare_data(lines):
     frequent_dictionary = nltk.FreqDist(itertools.chain(*tokenized))
     vocabulary = frequent_dictionary.most_common(MOST_FREQ_WORDS)
 
-    ind2word = ['_'] + ['pad'] + [x[0] for x in vocabulary]
+    ind2word = [PAD] + [OUT] + [x[0] for x in vocabulary]
     word2idx = dict([(w, i) for i, w in enumerate(ind2word)])
 
     data_len = len(question_tokenized)
@@ -48,8 +60,8 @@ def prepare_data(lines):
     answer_idx = np.zeros([data_len, MAX_LEN], dtype=np.int32)
 
     for i in range(data_len):
-        question_indexes = apply_padding(question_tokenized[i], word2idx, MAX_LEN)
-        answer_indexes = apply_padding(answer_tokenized[i], word2idx, MAX_LEN)
+        question_indexes = sequence_list(question_tokenized[i], word2idx, MAX_LEN)
+        answer_indexes = sequence_list(answer_tokenized[i], word2idx, MAX_LEN)
 
         question_idx[i] = np.array(question_indexes)
         answer_idx[i] = np.array(answer_indexes)
@@ -65,3 +77,24 @@ def prepare_data(lines):
 
     with open('../data/metadata.pkl', 'wb') as f:
         pickle.dump(metadata, f)
+
+
+def load_data(PATH=''):
+    try:
+        with open(PATH + 'metadata.pkl', 'rb') as f:
+            metadata = pickle.load(f)
+    except:
+        metadata = None
+
+    question_idx = np.load(PATH + 'question_idx.npy')
+    answer_idx = np.load(PATH + 'answer_idx.npy')
+    return metadata, question_idx, answer_idx
+
+
+def split_dataset(X, y, ratio=[0.7, 0.15, 0.15]):
+    data_len = len(X)
+    lens = [int(data_len*item) for item in ratio]
+
+    return (X[:lens[0]].tolist(), y[:lens[0]].tolist(),
+            X[lens[0]:lens[0]+lens[1]].tolist(), y[lens[0]:lens[0]+lens[1]].tolist(),
+            X[-lens[-1]:].tolist(), y[-lens[-1]:].tolist())
