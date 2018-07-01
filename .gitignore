@@ -106,7 +106,4 @@ venv.bak/
 .DS_Store
 data/__pycache__/
 
-data/
-models/
-notes.txt
 logs/
