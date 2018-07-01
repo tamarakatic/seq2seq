@@ -1,52 +1,64 @@
-import numpy as np
+import matplotlib as mpl
+mpl.use('TkAgg')
+
 import tensorflow as tf
+import tensorlayer as tl
 
-from data_utils import preprocess_targets
-from encoder import encoder_rnn
-from decoder import decoder_rnn
-
-
-def seq2seq_model(inputs, targets, keep_prob, batch_size, sequence_length,
-                  answers_num_words, questions_num_words, encoder_embedding_size,
-                  decoder_embedding_size, rnn_size, num_layers, questions_words_to_int):
-    encoder_embedding_input = tf.contrib.layers.embed_sequence(inputs,
-                                                               answers_num_words + 1,
-                                                               encoder_embedding_size,
-                                                               initializer=tf.random_uniform_initializer(0, 1))
-    encoder_state = encoder_rnn(encoder_embedding_input, rnn_size, num_layers, keep_prob, sequence_length)
-
-    preprocessed_targets = preprocess_targets(targets, questions_words_to_int, batch_size)
-    
-    decoder_embeddings_matrix = tf.Variable(tf.random_uniform([questions_num_words + 1,
-                                                               decoder_embedding_size],
-                                                              0, 1))
-    decoder_embedded_input = tf.nn.embedding_lookup(decoder_embeddings_matrix,
-                                                    preprocessed_targets)
-    training_predictions, test_predictions = decoder_rnn(decoder_embedded_input,
-                                                         decoder_embeddings_matrix,
-                                                         encoder_state,
-                                                         questions_num_words,
-                                                         sequence_length,
-                                                         rnn_size,
-                                                         num_layers,
-                                                         questions_words_to_int,
-                                                         keep_prob,
-                                                         batch_size)
-    return training_predictions, test_predictions
+from tensorlayer.layers import EmbeddingInputlayer
+from tensorlayer.layers import retrieve_seq_length_op2
+from tensorlayer.layers import Seq2Seq
+from tensorlayer.layers import DenseLayer
 
 
-def apply_padding(batch_of_sequences, word_to_int):
-    max_sequence_length = max([len(sequence) for sequence in batch_of_sequences])
-    return [sequence + [word_to_int['<PAD>']] * (max_sequence_length - len(sequence))
-            for sequence in batch_of_sequences]
+def seq2seq_model(encode_sequences,
+                  decode_sequences,
+                  vocabulary_size,
+                  embedding_dim,
+                  is_train=True,
+                  reuse=False):
+    with tf.variable_scope("model", reuse=reuse):
+        with tf.variable_scope("embedding") as vs:
+            net_encode = EmbeddingInputlayer(
+                        inputs=encode_sequences,
+                        vocabulary_size=vocabulary_size,
+                        embedding_size=embedding_dim,
+                        name='seq_embedding')
+            vs.reuse_variables()
+            tl.layers.set_name_reuse(True)
+            net_decode = EmbeddingInputlayer(
+                inputs=decode_sequences,
+                vocabulary_size=vocabulary_size,
+                embedding_size=embedding_dim,
+                name='seq_embedding')
+        net_rnn = Seq2Seq(net_encode, net_decode,
+                          cell_fn=tf.contrib.rnn.BasicLSTMCell,
+                          n_hidden=embedding_dim,
+                          initializer=tf.random_uniform_initializer(-0.1, 0.1),
+                          encode_sequence_length=retrieve_seq_length_op2(encode_sequences),
+                          decode_sequence_length=retrieve_seq_length_op2(decode_sequences),
+                          initial_state_encode=None,
+                          dropout=(0.5 if is_train else None),
+                          n_layer=3,
+                          return_seq_2d=True,
+                          name='seq2seq')
+        net_out = DenseLayer(net_rnn, n_units=vocabulary_size, act=tf.identity, name='output')
+    return net_out, net_rnn
 
 
-def split_into_batches(questions, answers, batch_size, questions_words_to_int,
-                       answers_words_to_int):
-    for batch_index in range(0, len(questions) // batch_size):
-        start_index = batch_index * batch_size
-        questions_in_batch = questions[start_index:start_index + batch_size]
-        answers_in_batch = answers[start_index:start_index + batch_size]
-        padded_questions_in_batch = np.array(apply_padding(questions_in_batch, questions_words_to_int))
-        padded_answers_in_batch = np.array(apply_padding(answers_in_batch, answers_words_to_int))
-        yield padded_questions_in_batch, padded_answers_in_batch
+def training_model(batch_size, vocab_size, embed_dim):
+    encode_seqs = tf.placeholder(dtype=tf.int64, shape=[batch_size, None], name="encode_seqs")
+    decode_seqs = tf.placeholder(dtype=tf.int64, shape=[batch_size, None], name="decode_seqs")
+    target_seqs = tf.placeholder(dtype=tf.int64, shape=[batch_size, None], name="target_seqs")
+    target_mask = tf.placeholder(dtype=tf.int64, shape=[batch_size, None], name="target_mask")
+
+    net_out, _ = seq2seq_model(encode_seqs, decode_seqs, vocab_size, embed_dim, is_train=True, reuse=False)
+    return encode_seqs, decode_seqs, target_seqs, target_mask, net_out
+
+
+def inferencing_model(vocab_size, embed_dim):
+    encode_seqs = tf.placeholder(dtype=tf.int64, shape=[1, None], name="encode_seqs")
+    decode_seqs = tf.placeholder(dtype=tf.int64, shape=[1, None], name="decode_seqs")
+
+    net, net_rnn = seq2seq_model(encode_seqs, decode_seqs, vocab_size, embed_dim, is_train=False, reuse=True)
+    output = tf.nn.softmax(net.outputs)
+    return encode_seqs, decode_seqs, net, net_rnn, output
