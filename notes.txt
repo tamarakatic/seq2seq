@@ -1,3 +1,0 @@
-1. seq2seq kod embedding inicijalizacija na xavier
-2. tezine kod sequence_loss-a da li idu 0 za pad i 1 za reci
-3. smanjiti sequence_length
