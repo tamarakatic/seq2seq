@@ -1,9 +1,12 @@
-import nltk
-import itertools
-import numpy as np
+import os
 import pickle
+import itertools
 
-from preprocess_data import clean_text, read_txt, preprocess_cornell_data
+import nltk
+import numpy as np
+
+from .constants import DATA_DIR
+from .preprocessing import clean_text, read_txt, preprocess_cornell_data
 
 OUT = 'out'     # unknown
 PAD = 'pad'
@@ -12,8 +15,25 @@ MAX_LEN = 25
 MIN_LEN = 2
 
 
-def type_of_data(Twitter=True):
-    if Twitter:
+def get_metadata():
+    metadata_path = os.path.join(DATA_DIR, 'metadata.pkl')
+    with open(metadata_path, 'rb') as f:
+        metadata = pickle.load(f)
+
+    word_to_idx_dict = metadata['word2idx']
+    idx_to_word_list = metadata['idx2word']
+    vocab_size = len(metadata['idx2word'])  # 10002
+    start_id, end_id = vocab_size, vocab_size + 1  # 10002, 10003
+    idx_to_word_list.extend(['start_id', 'end_id'])
+    word_to_idx_dict.update({
+        'start_id': start_id,
+        'end_id': end_id
+    })
+    return start_id, end_id, vocab_size + 2, word_to_idx_dict, idx_to_word_list
+
+
+def type_of_data(twitter=True):
+    if twitter:
         twitter_lines = read_txt('../data/twitter.txt')
         prepare_data(twitter_lines)
     else:
@@ -70,10 +90,10 @@ def prepare_data(lines):
     np.save('../data/answer_idx.npy', answer_idx)
 
     metadata = {
-            'word2idx': word2idx,
-            'idx2word': ind2word,
-            'freq_dist': frequent_dictionary
-            }
+        'word2idx': word2idx,
+        'idx2word': ind2word,
+        'freq_dist': frequent_dictionary
+    }
 
     with open('../data/metadata.pkl', 'wb') as f:
         pickle.dump(metadata, f)
@@ -83,7 +103,7 @@ def load_data(PATH=''):
     try:
         with open(PATH + 'metadata.pkl', 'rb') as f:
             metadata = pickle.load(f)
-    except:
+    except Exception:
         metadata = None
 
     question_idx = np.load(PATH + 'question_idx.npy')
