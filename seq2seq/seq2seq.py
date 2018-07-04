@@ -1,6 +1,3 @@
-import matplotlib as mpl
-mpl.use('TkAgg')
-
 import tensorflow as tf
 import tensorlayer as tl
 
@@ -16,15 +13,15 @@ def seq2seq_model(encode_sequences,
                   embedding_dim,
                   is_train=True,
                   reuse=False):
-    with tf.variable_scope("model", reuse=reuse):
-        with tf.variable_scope("embedding") as vs:
+    with tf.variable_scope("model", reuse=tf.AUTO_REUSE):
+        tl.layers.set_name_reuse(tf.AUTO_REUSE)
+        with tf.variable_scope("embedding"):
             net_encode = EmbeddingInputlayer(
-                        inputs=encode_sequences,
-                        vocabulary_size=vocabulary_size,
-                        embedding_size=embedding_dim,
-                        name='seq_embedding')
-            vs.reuse_variables()
-            tl.layers.set_name_reuse(True)
+                inputs=encode_sequences,
+                vocabulary_size=vocabulary_size,
+                embedding_size=embedding_dim,
+                name='seq_embedding')
+
             net_decode = EmbeddingInputlayer(
                 inputs=decode_sequences,
                 vocabulary_size=vocabulary_size,
@@ -51,7 +48,8 @@ def training_model(batch_size, vocab_size, embed_dim):
     target_seqs = tf.placeholder(dtype=tf.int64, shape=[batch_size, None], name="target_seqs")
     target_mask = tf.placeholder(dtype=tf.int64, shape=[batch_size, None], name="target_mask")
 
-    net_out, _ = seq2seq_model(encode_seqs, decode_seqs, vocab_size, embed_dim, is_train=True, reuse=False)
+    net_out, _ = seq2seq_model(encode_seqs, decode_seqs, vocab_size,
+                               embed_dim, is_train=True, reuse=False)
     return encode_seqs, decode_seqs, target_seqs, target_mask, net_out
 
 
@@ -59,6 +57,7 @@ def inferencing_model(vocab_size, embed_dim):
     encode_seqs = tf.placeholder(dtype=tf.int64, shape=[1, None], name="encode_seqs")
     decode_seqs = tf.placeholder(dtype=tf.int64, shape=[1, None], name="decode_seqs")
 
-    net, net_rnn = seq2seq_model(encode_seqs, decode_seqs, vocab_size, embed_dim, is_train=False, reuse=True)
+    net, net_rnn = seq2seq_model(encode_seqs, decode_seqs, vocab_size,
+                                 embed_dim, is_train=False, reuse=True)
     output = tf.nn.softmax(net.outputs)
     return encode_seqs, decode_seqs, net, net_rnn, output
