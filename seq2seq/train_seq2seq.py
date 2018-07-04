@@ -1,13 +1,11 @@
 import time
 from sklearn.utils import shuffle
-import matplotlib as mpl
-mpl.use('TkAgg')
-
-from data_utils import split_dataset, load_data
-from seq2seq import seq2seq_model, training_model, inferencing_model
 
 import tensorflow as tf
 import tensorlayer as tl
+
+from data_utils import split_dataset, load_data
+from seq2seq import training_model, inferencing_model
 
 
 metadata, question_idx, answer_idx = load_data(PATH='../data/')
@@ -35,47 +33,46 @@ def remove_pad_sequences(ques_idx, ans_idx):
 
 
 def seq2seq_example(idx_to_word_list, train_X, train_y, start_id, end_id):
+    print("************************* Seq2seq Example *************************\n")
     print("encode_sequences: ", [idx_to_word_list[id] for id in train_X[10]])
     target_sequences = tl.prepro.sequences_add_end_id([train_y[10]], end_id=end_id)[0]
     print("target_sequences: ", [idx_to_word_list[id] for id in target_sequences])
-    decode_sequences = tl.prepro.sequences_add_start_id([train_y[10]], start_id=start_id, remove_last=False)[0]
+    decode_sequences = tl.prepro.sequences_add_start_id(
+        [train_y[10]], start_id=start_id, remove_last=False)[0]
     print("decode_sequences: ", [idx_to_word_list[id] for id in decode_sequences])
     target_mask = tl.prepro.sequences_get_mask([target_sequences])[0]
     print("target_mask: ", target_mask)
-    print(len(target_sequences), len(decode_sequences), len(target_mask))
+    print("target_sequences len: ", len(target_sequences),
+          "decode_sequences len: ", len(decode_sequences),
+          "target_mask len: ", len(target_mask))
+    print("\n************************* Seq2seq Example *************************")
 
 
-def prepare_parameters():
-    X_vocab_size = len(metadata['idx2word'])        # 10002
-
+def get_metadata():
     word_to_idx_dict = metadata['word2idx']
     idx_to_word_list = metadata['idx2word']
-
-    start_id, end_id = X_vocab_size, X_vocab_size + 1       # 10002, 10003
-
-    word_to_idx_dict.update({'start_id': start_id})
-    word_to_idx_dict.update({'end_id': end_id})
-    idx_to_word_list = idx_to_word_list + ['start_id', 'end_id']
-    X_vocab_size = y_vocab_size = X_vocab_size + 2
-
-    seq2seq_example(idx_to_word_list, train_X, train_y, start_id, end_id)
-
-    return (start_id, end_id,
-            X_vocab_size, y_vocab_size,
-            word_to_idx_dict, idx_to_word_list)
+    vocab_size = len(metadata['idx2word'])  # 10002
+    start_id, end_id = vocab_size, vocab_size + 1  # 10002, 10003
+    idx_to_word_list.extend(['start_id', 'end_id'])
+    word_to_idx_dict.update({
+        'start_id': start_id,
+        'end_id': end_id
+    })
+    return start_id, end_id, vocab_size + 2, word_to_idx_dict, idx_to_word_list
 
 
-def train_model(train_X, train_y, n_step):
-    start_id, end_id, X_vocab_size, y_vocab_size, word_to_idx_dict, idx_to_word_list = prepare_parameters()
-
+def train_model(train_X, train_y, n_step,
+                start_id, end_id,
+                X_vocab_size, y_vocab_size,
+                word_to_idx_dict, idx_to_word_list):
     encode_seqs_tr, decode_seqs_tr, target_seqs, target_mask, net_out = training_model(
-                                                                        batch_size,
-                                                                        X_vocab_size,
-                                                                        embedding_dim)
+        batch_size,
+        X_vocab_size,
+        embedding_dim)
 
     encode_seqs_inf, decode_seqs_inf, net, net_rnn, output = inferencing_model(
-                                                             X_vocab_size,
-                                                             embedding_dim)
+        X_vocab_size,
+        embedding_dim)
 
     loss = tl.cost.cross_entropy_seq_with_mask(logits=net_out.outputs,
                                                target_seqs=target_seqs,
@@ -128,8 +125,10 @@ def train_model(train_X, train_y, n_step):
 
             # inference
             if batch_idx % 1000 == 0:
-                ex_queries = ["happy birthday have a nice day",
-                              "donald trump won last nights presidential debate according to snap online polls"]
+                ex_queries = [
+                    "happy birthday have a nice day",
+                    "donald trump won last nights presidential debate according to online polls"
+                ]
 
                 for query in ex_queries:
                     print("Lucy > ", query)
@@ -138,7 +137,7 @@ def train_model(train_X, train_y, n_step):
                         # encode => get state
                         state = sess.run(net_rnn.final_state_encode,
                                          {encode_seqs_inf: [query_id]})
-                        # decode => feed start_id, get top word
+                        # decode => feed start_id, get first word
                         out, state = sess.run([output, net_rnn.final_state_decode],
                                               {net_rnn.initial_state_decode: state,
                                                decode_seqs_inf: [[start_id]]})
@@ -150,7 +149,7 @@ def train_model(train_X, train_y, n_step):
                             out, state = sess.run([output, net_rnn.final_state_decode],
                                                   {net_rnn.initial_state_decode: state,
                                                    decode_seqs_inf: [[word_id]]})
-                            word_id = tl.nlp.sample_top(out[0], top_k=2)
+                            word_id = tl.nlp.sample_top(out[0], top_k=3)
                             word = idx_to_word_list[word_id]
                             if word_id == end_id:
                                 break
@@ -173,11 +172,17 @@ def train_model(train_X, train_y, n_step):
             if early_stopping_check == early_stopping_stop:
                 break
 
-    
+
 if __name__ == '__main__':
-    train_X, train_y, test_X, test_y, valid_X, valid_y = remove_pad_sequences(question_idx, answer_idx)
+    train_X, train_y, test_X, test_y, valid_X, valid_y = remove_pad_sequences(
+        question_idx, answer_idx)
     X_seq_len, y_seq_len = len(train_X), len(train_y)
     assert X_seq_len == y_seq_len
 
     n_step = int(X_seq_len/batch_size)      # 7708
-    train_model(train_X, train_y, n_step)
+    start_id, end_id, X_vocab_size, y_vocab_size, \
+        word_to_idx_dict, idx_to_word_list = prepare_parameters(train_X, train_y)
+    train_model(train_X, train_y, n_step,
+                start_id, end_id,
+                X_vocab_size, y_vocab_size,
+                word_to_idx_dict, idx_to_word_list)
