@@ -1,12 +1,12 @@
-import os
-import pickle
 import itertools
+import pickle
 
 import nltk
 import numpy as np
 
-from .constants import DATA_DIR
+from .constants import METADATA_PATH
 from .preprocessing import clean_text, read_txt, preprocess_cornell_data
+
 
 OUT = 'out'     # unknown
 PAD = 'pad'
@@ -15,9 +15,8 @@ MAX_LEN = 25
 MIN_LEN = 2
 
 
-def get_metadata():
-    metadata_path = os.path.join(DATA_DIR, 'metadata.pkl')
-    with open(metadata_path, 'rb') as f:
+def get_metadata(path=METADATA_PATH):
+    with open(path, 'rb') as f:
         metadata = pickle.load(f)
 
     word_to_idx_dict = metadata['word2idx']

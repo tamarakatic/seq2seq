@@ -1,13 +1,12 @@
-import os
-
 import tensorflow as tf
 import tensorlayer as tl
 
-from .data_utils import get_metadata
 from .constants import MODEL_PATH
-from .seq2seq import inferencing_model
+from .data_utils import get_metadata
 from .preprocessing import clean_text
+from .seq2seq import inferencing_model
 from .utils import color
+
 
 EMBEDDING_DIM = 1024
 SENTENCE_LENGTH = 25
@@ -70,7 +69,6 @@ if __name__ == '__main__':
             query = input(color("{:>6}".format("Me: "), color='red'))
             response = bot.respond(query)
             print(color('{:>6}'.format('Lucy: '), color='blue') + color(response, color='white'))
-            os.system("say -r 0.85 \"{}\"".format(response))
 
     except (KeyboardInterrupt, EOFError):
         print('\nShutting down')
